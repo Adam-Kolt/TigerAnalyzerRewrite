@@ -16,6 +16,7 @@ function getValueStroke(value) {
 function populate_rankings(data, options) {
     resetRankings(data);
     if (options["comparison_team"] == "none") options["comparison_team"] = null;
+    console.log(data);
     invoke('get_team_rankings', {'teamData':data, 'options':options}).then((team_rankings) => {
         let rankings = document.querySelector(".rankings");
 
@@ -87,7 +88,7 @@ function populateOptions(data) {
         populate_rankings(data, {"comparison_team": team})
     });
     document.querySelector(".comparison-team-select").innerHTML = teamOptionsHtml;
-
+    
     populate_rankings(data, {});
 
     

@@ -32,7 +32,8 @@ function fillRawTeamData(event) {
       teamEntry.innerHTML = `
               <div class="label">${team.team_number}</div>
               <div class="team-name">${(team.tba_data) ? team.tba_data.nickname:"Team"} (${team.match_data.length} ${(team.match_data.length == 1) ? "Entry":"Entries" })</div>
-              <table class="cone-table">
+              <table class="cube-table">
+                <caption><object class="caption-icon" data="./assets/svg/cube.svg" type=""></object></caption>
                 <caption><object class="caption-icon" data="./assets/svg/cone.svg" type=""></object></caption>
                 <tr>
                   <th>Low</th>
@@ -40,22 +41,9 @@ function fillRawTeamData(event) {
                   <th>High</th>
                 </tr>
                 <tr>
-                  <td>${round2Two(team.summary.avg_cone_low)}</td>
-                  <td>${round2Two(team.summary.avg_cone_med)}</td>
-                  <td>${round2Two(team.summary.avg_cone_high)}</td>
-                </tr>
-              </table>
-              <table class="cube-table">
-                <caption><object class="caption-icon" data="./assets/svg/cube.svg" type=""></object></caption>
-                <tr>
-                  <th>Low</th>
-                  <th>Medium</th>
-                  <th>High</th>
-                </tr>
-                <tr>
-                  <td>${round2Two(team.summary.avg_cube_low)}</td>
-                  <td>${round2Two(team.summary.avg_cube_med)}</td>
-                  <td>${round2Two(team.summary.avg_cube_high)}</td>
+                  <td>${round2Two(team.summary.avg_low)}</td>
+                  <td>${round2Two(team.summary.avg_med)}</td>
+                  <td>${round2Two(team.summary.avg_high)}</td>
                 </tr>
               </table>
               <table class="station-table">
