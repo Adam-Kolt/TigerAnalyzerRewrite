@@ -1,7 +1,10 @@
-use std::{collections::HashMap, cmp};
+use std::{collections::HashMap, cmp, f64::consts::PI};
 
 use reqwest::{header, Response, Error};
 use serde::{Serialize, Deserialize, de};
+use statrs::{function::gamma::gamma, distribution::{StudentsT, ContinuousCDF}};
+
+use crate::CONFIDENCE_INTERVAL;
 
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
@@ -10,6 +13,7 @@ enum BalanceState {
     OffPlatform,
     OnPlatform,
     OnDocked,
+    Parked,
     NotAttempt,
 }
 
@@ -138,6 +142,7 @@ where
         "0" | "x" | "a" | "OffPlatform" => Ok(BalanceState::OffPlatform),
         "1" | "d" | "OnPlatform" => Ok(BalanceState::OnPlatform),
         "2" | "e" | "OnDocked" => Ok(BalanceState::OnDocked),
+        "3" | "p" | "Parked" => Ok(BalanceState::Parked),
         _ => Ok(BalanceState::NotAttempt),
         //_ => Err(de::Error::custom("Not a valid Balance Status"))
     }
@@ -175,6 +180,13 @@ pub struct TeamSummary {
     pub balance_percentage: f64,
     pub dock_percentage: f64,
     pub auto_mobility: bool,
+    pub low_confidence: f64,
+    pub med_confidence: f64,
+    pub high_confidence: f64,
+    pub auto_point_confidence: f64,
+    pub teleop_point_confidence: f64,
+    pub auto_points: f64,
+    pub teleop_points: f64,
 }
 
 // UNSURE OF IMPLEMENTATION FOR AVERAGING
@@ -184,17 +196,57 @@ struct  TeamSummaryAvgCounter {
     avg_high: Vec<u64>,
     avg_links: Vec<u64>,
     balance_count: Vec<u64>,
-    dock_count: Vec<u64>
+    dock_count: Vec<u64>,
+    teleop_points: Vec<u64>,
+    auto_points: Vec<u64>,
 
 }
 impl TeamSummaryAvgCounter {
     pub fn new() -> TeamSummaryAvgCounter {
-        TeamSummaryAvgCounter { avg_low: Vec::new(), avg_med: Vec::new(), avg_high: Vec::new(), balance_count: Vec::new(), dock_count: Vec::new(), avg_links: Vec::new() }
+        TeamSummaryAvgCounter { avg_low: Vec::new(), avg_med: Vec::new(), avg_high: Vec::new(), balance_count: Vec::new(), dock_count: Vec::new(), avg_links: Vec::new(), teleop_points: Vec::new(), auto_points: Vec::new() }
     }
 }
 
+// finds the standard error of sample statistic
+fn stand_error(data: &Vec<u64>) -> f64 {
+    let mut sum = 0.0;
+    let mut sum_sq = 0.0;
+    let mut n = 0.0;
+    let mut dev = 0.0;
+    for i in data {
+        sum += *i as f64;
+        sum_sq += (*i as f64) * (*i as f64);
+        n += 1.0;
+    }
+    let mean = sum / n;
+    for i in data {
+        dev += ((*i as f64) - mean) * ((*i as f64) - mean);
+    }
+    (dev / (n - 1.0)).sqrt()
+}
+
+// finds the tInterval of a sample data with confidence level
+fn tInterval(data: &Vec<u64>, confidence: f64) -> f64 {
+    if(data.len() <= 1) {
+        return 0.0;
+    }
+    let n = data.len() as f64;
+    let se = stand_error(data) / (n).sqrt();
+    if se <= 0.0 {
+        return 0.0;
+    }
+    let tDist = match StudentsT::new(0.0,se,n-1.0){
+        Ok(t) => t,
+        Err(e) => panic!("Error: {} Data: {:?} Confidence: {} SE: {}", e, data, confidence, se),
+    };
+    let t = tDist.inverse_cdf(1.0 - ((1.0-confidence)/2.0));
+    t
+}
+
+
 
 impl TeamSummary {
+    
     pub fn new(team: &FrcTeam) -> TeamSummary {
         let mut avg_count = TeamSummaryAvgCounter::new();
         let mut balance_flag = false;
@@ -205,6 +257,21 @@ impl TeamSummary {
             avg_count.avg_high.push(match_entry.total_high);
             avg_count.avg_links.push(match_entry.links_scored);
 
+            let auto_points = match_entry.auto_low*3 + match_entry.auto_med*4 + match_entry.auto_high*6 + match match_entry.final_state {
+                BalanceState::OnDocked => 12,
+                BalanceState::OnPlatform => 8,
+                _ => 0,
+            };
+            let teleop_points = match_entry.total_low*2 + match_entry.total_med*3 + match_entry.total_high*5 + match_entry.links_scored*5 + match match_entry.auto_docked {
+                BalanceState::OnDocked => 10,
+                BalanceState::OnPlatform => 6,
+                BalanceState::Parked => 2,
+                _ => 0,
+            };
+
+            avg_count.auto_points.push(auto_points);
+            avg_count.teleop_points.push(teleop_points);
+
             match match_entry.final_state {
                 BalanceState::OffPlatform => {
                     avg_count.balance_count.push(0);
@@ -212,7 +279,7 @@ impl TeamSummary {
                 }
                 
                 BalanceState::OnDocked => {
-                    avg_count.balance_count.push(0);
+                    avg_count.balance_count.push(1);
                     avg_count.dock_count.push(1);
                     balance_flag = true;
                 }
@@ -222,13 +289,14 @@ impl TeamSummary {
                     avg_count.dock_count.push(0);
                     balance_flag = true;
                 }
-                BalanceState::NotAttempt => {}
+                _ => {}
             }
             if (match_entry.auto_mobility) {mobility_flag = true};
             
         }
 
         
+        println! ("Num: {:?}", team.team_number);
 
         
 
@@ -240,6 +308,8 @@ impl TeamSummary {
             avg_cube_low: 0 as f64, 
             avg_cube_med: 0 as f64,  
             avg_cube_high: 0 as f64,
+            teleop_points: avg_count.teleop_points.iter().copied().sum::<u64>() as f64 / avg_count.teleop_points.len() as f64,
+            auto_points: avg_count.auto_points.iter().copied().sum::<u64>() as f64 / avg_count.auto_points.len() as f64,
             avg_low: avg_count.avg_low.iter().copied().sum::<u64>() as f64 / avg_count.avg_low.len() as f64,
             can_balance: balance_flag,
             avg_med: avg_count.avg_med.iter().copied().sum::<u64>() as f64 /avg_count.avg_med.len() as f64,
@@ -248,6 +318,11 @@ impl TeamSummary {
             dock_percentage: avg_count.dock_count.iter().copied().sum::<u64>() as f64 / avg_count.dock_count.len() as f64,
             avg_links: avg_count.avg_links.iter().copied().sum::<u64>() as f64 / avg_count.avg_links.len() as f64,
             auto_mobility: mobility_flag,
+            low_confidence: tInterval(&avg_count.avg_low, CONFIDENCE_INTERVAL) as f64,
+            med_confidence: tInterval(&avg_count.avg_med, CONFIDENCE_INTERVAL) as f64,
+            high_confidence: tInterval(&avg_count.avg_high, CONFIDENCE_INTERVAL) as f64,
+            auto_point_confidence: tInterval(&avg_count.auto_points, CONFIDENCE_INTERVAL) as f64,
+            teleop_point_confidence:  tInterval(&avg_count.teleop_points, CONFIDENCE_INTERVAL) as f64,
         }
 
     }
@@ -268,7 +343,14 @@ impl TeamSummary {
             balance_percentage: f64::max(team1.balance_percentage, team2.balance_percentage),
             dock_percentage: f64::max(team1.dock_percentage, team2.dock_percentage),
             avg_links: team1.avg_links + team2.avg_links,
-            auto_mobility: team1.auto_mobility | team2.auto_mobility
+            auto_mobility: team1.auto_mobility | team2.auto_mobility,
+            low_confidence: (team1.low_confidence + team2.low_confidence) / 2.0,
+            med_confidence: (team1.med_confidence + team2.med_confidence) / 2.0,
+            high_confidence: (team1.high_confidence + team2.high_confidence) / 2.0,
+            auto_point_confidence: (team1.auto_point_confidence + team2.auto_point_confidence) / 2.0,
+            teleop_point_confidence: (team1.teleop_point_confidence + team2.teleop_point_confidence) / 2.0,
+            auto_points: team1.auto_points + team2.auto_points,
+            teleop_points: team1.teleop_points + team2.teleop_points,
         }
     }
     pub fn constrain_values(&mut self) -> Self {
