@@ -21,8 +21,7 @@ function updateTeamCard(event, data) {
                   <div class="team-name">${(team.tba_data) ? team.tba_data.nickname:"Team"} (${team.match_data.length} ${(team.match_data.length == 1) ? "Entry":"Entries" })</div>
           
                   <div class="cubes-row">
-                  <object class="caption-icon" data="./assets/svg/cone.svg" type=""></object>
-                    <object class="caption-icon" data="./assets/svg/cube.svg" type=""></object>
+                
                     <table class="cube-table">
                       <tr>
                         <th>Low</th>
@@ -30,22 +29,22 @@ function updateTeamCard(event, data) {
                         <th>High</th>
                       </tr>
                       <tr>
-                        <td>${round2Two(team.summary.avg_low)}</td>
-                        <td>${round2Two(team.summary.avg_med)}</td>
-                        <td>${round2Two(team.summary.avg_high)}</td>
+                      <td>${round2Two(team.summary.avg_low)}<span class='confidence-interval'>±${round2Two(team.summary.low_confidence)}</span></td>
+                      <td>${round2Two(team.summary.avg_med)}<span class='confidence-interval'>±${round2Two(team.summary.med_confidence)}</span></td>
+                      <td>${round2Two(team.summary.avg_high)}<span class='confidence-interval'>±${round2Two(team.summary.high_confidence)}</span></td>
                       </tr>
                     </table>
                   </div>
                   <table class="station-table">
                   <tr>
                     <th class="station-text">Smart Links</th>
-                    <th class="station-text">Balance</th>
-                    <th class="station-text">Auto Mobile</th>
+                    <th class="station-text">Teleop Points</th>
+                    <th class="station-text">Auto Points</th>
                   </tr>
                   <tr>
                     <td style="text-align:center;">${round2Two(team.summary.avg_links)}</td>
-                    <td style="text-align:center;">${team.summary.can_balance.toString().toUpperCase()}</td>
-                    <td style="text-align:center;">${team.summary.auto_mobility.toString().toUpperCase()}</td>
+                    <td style="text-align:center;">${round2Two(team.summary.teleop_points)}<span class='confidence-interval'>±${round2Two(team.summary.teleop_point_confidence)}</span></td>
+                    <td style="text-align:center;">${round2Two(team.summary.auto_points)}<span class='confidence-interval'>±${round2Two(team.summary.auto_point_confidence)}</span></td>
                   </tr>
                 </table>
               <table class="station-table">

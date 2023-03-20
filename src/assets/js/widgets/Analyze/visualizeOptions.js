@@ -28,7 +28,7 @@ function populate_rankings(data, options) {
             div.innerHTML = `
             <div class="id-data">
                 <div class="rank">#${i+1}</div>
-                <div class="team-number">${team.team_number}</div>
+                <div class="team-number">${team.team_number} <span class='team-name'>${(team.team_name) ? team.team_name:"Team"}</span></div>
             </div>  
             <div class="rate-data">
                   <div class="rating-group">
@@ -44,11 +44,11 @@ function populate_rankings(data, options) {
                     <div class="sub-rating rating-bar ldBar label-center"></div>
                 </div>
                 <div class="rating-group">
-                    <div class="rating-label">Balance</div>
+                    <div class="rating-label">Docked</div>
                     <div class="sub-rating rating-bar ldBar label-center"></div>
                 </div>
                 <div class="rating-group" style="margin-right:20px">
-                    <div class="rating-label">Dock</div>
+                    <div class="rating-label">Engaged</div>
                     <div class="sub-rating rating-bar ldBar label-center"></div>
                 </div>
                   <div class="overall-rating rating-bar ldBar label-center"></div>

@@ -328,6 +328,7 @@ impl TeamSummary {
     }
     // Creates a combination of two teams into one summary
     fn combine_teams(team1: &TeamSummary, team2: &TeamSummary) -> TeamSummary {
+        
         TeamSummary {
             team_number: team1.team_number,
             avg_cone_low: (team1.avg_cone_low + team2.avg_cone_low),
@@ -375,7 +376,9 @@ pub struct RankMaxCount {
     pub medium: f64,
     pub high: f64,
     pub balance: f64,
-    pub dock: f64
+    pub dock: f64,
+    pub teleop_points: f64,
+    pub auto_points: f64,
 }
 
 pub struct PointValues {
@@ -394,6 +397,7 @@ pub struct RankOptions {
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct TeamRanking {
     pub team_number: u64,
+    pub team_name: Option<String>,
     pub overall_rating: f64,
     pub low_rating: f64,
     pub medium_rating: f64,
@@ -452,9 +456,15 @@ impl TeamRanking {
             if team_summary.dock_percentage > maxCount.dock {
                 maxCount.dock = team_summary.dock_percentage;
             }
+            if team_summary.teleop_points > maxCount.teleop_points {
+                maxCount.teleop_points = team_summary.teleop_points;
+            }
+            if team_summary.auto_points > maxCount.auto_points {
+                maxCount.auto_points = team_summary.auto_points;
+            }
         };
 
-        let totalPoints = (maxCount.low*point_values.low + maxCount.medium*point_values.medium + maxCount.high*point_values.high + maxCount.balance*point_values.balance + maxCount.dock*point_values.dock);
+        let totalPoints = maxCount.auto_points + maxCount.teleop_points;
 
         for team in teams.values() {
             if (comparison_team.team_number == team.team_number) {
@@ -463,13 +473,14 @@ impl TeamRanking {
             let team_summary = TeamSummary::combine_teams(team.get_summary().as_ref().unwrap(), comparison_team.get_summary().as_ref().unwrap()).constrain_values();
             let mut ranking = TeamRanking::default();
             ranking.team_number = team.team_number;
+            ranking.team_name = team.tba_data.as_ref().unwrap().get("nickname").unwrap().as_str().map(|s| s.to_string());
             ranking.low_rating = team_summary.avg_low / maxCount.low;
             ranking.medium_rating = team_summary.avg_med / maxCount.medium;
             ranking.high_rating = team_summary.avg_high / maxCount.high;
             ranking.balance_rating = team_summary.balance_percentage / maxCount.balance;
             ranking.dock_rating = team_summary.dock_percentage / maxCount.dock;
             ranking.data_reliability_rating = 1.0;
-            ranking.overall_rating = (team_summary.avg_low*point_values.low + team_summary.avg_med*point_values.medium + team_summary.avg_high*point_values.high + team_summary.balance_percentage*point_values.balance + team_summary.dock_percentage*point_values.dock)/totalPoints;
+            ranking.overall_rating = (team_summary.auto_points + team_summary.teleop_points)/totalPoints;
             rankings.push(ranking);
         };
         rankings

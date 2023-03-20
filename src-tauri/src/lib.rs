@@ -23,6 +23,7 @@ pub use mobile::*;
 pub type SetupHook = Box<dyn FnOnce(&mut App) -> Result<(), Box<dyn std::error::Error>> + Send>;
 
 pub static TBA_AUTH_KEY: &str = "YpCes0r7kuXhw0S5fubKU27qoU4cAwDft0NBjhD3DdUKa9taHKhC3zGR0mqK76zA";
+pub const CONFIDENCE_INTERVAL: f64 = 0.9;
 
 fn read_scout_data(data_path: &str) -> Result<HashMap<u64, FrcTeam>, Box<dyn Error>> {
     let mut team_list: HashMap<u64, FrcTeam> = HashMap::new();
