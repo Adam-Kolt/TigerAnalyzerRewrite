@@ -59,7 +59,7 @@ fn get_team_rankings(handle: tauri::AppHandle, team_data: HashMap<u64, FrcTeam>,
 fn submit_data(handle: tauri::AppHandle, data_path: &str) -> HashMap<u64, FrcTeam> {
     let data: HashMap<u64, FrcTeam> = read_scout_data(data_path).unwrap();
     return data;
-
+ 
 }
 
 #[tauri::command]

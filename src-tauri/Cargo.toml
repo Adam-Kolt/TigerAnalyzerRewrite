@@ -1,6 +1,6 @@
 [package]
 name = "tiger-analyzer"
-version = "0.0.0"
+version = "0.1.1"
 description = "A Tauri App"
 authors = ["Adam Koltuniuk"]
 license = ""

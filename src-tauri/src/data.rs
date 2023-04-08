@@ -473,7 +473,10 @@ impl TeamRanking {
             let team_summary = TeamSummary::combine_teams(team.get_summary().as_ref().unwrap(), comparison_team.get_summary().as_ref().unwrap()).constrain_values();
             let mut ranking = TeamRanking::default();
             ranking.team_number = team.team_number;
-            ranking.team_name = team.tba_data.as_ref().unwrap().get("nickname").unwrap().as_str().map(|s| s.to_string());
+            ranking.team_name = match team.tba_data.as_ref(){
+                Some(data) => data.get("nickname").unwrap().as_str().map(|s| s.to_string()),
+                None => None
+            };
             ranking.low_rating = team_summary.avg_low / maxCount.low;
             ranking.medium_rating = team_summary.avg_med / maxCount.medium;
             ranking.high_rating = team_summary.avg_high / maxCount.high;
