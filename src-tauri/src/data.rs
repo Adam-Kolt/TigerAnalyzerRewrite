@@ -528,6 +528,10 @@ impl FrcTeam {
     pub fn add_match_entry(&mut self, mut entry: MatchEntry) {
         self.match_data.push(entry.constrain_values());
     }
+
+    pub fn get_match_data(&self) -> &Vec<MatchEntry> {
+        &self.match_data
+    }
 }
 
 
