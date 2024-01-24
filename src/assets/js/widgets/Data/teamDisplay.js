@@ -32,30 +32,27 @@ function fillRawTeamData(event) {
       teamEntry.innerHTML = `
               <div class="label">${team.team_number}</div>
               <div class="team-name">${(team.tba_data) ? team.tba_data.nickname:"Team"} (${team.match_data.length} ${(team.match_data.length == 1) ? "Entry":"Entries" })</div>
-              <table class="cone-table">
-                <caption><object class="caption-icon" data="./assets/svg/cone.svg" type=""></object></caption>
+              <table class="cube-table">
                 <tr>
                   <th>Low</th>
                   <th>Medium</th>
                   <th>High</th>
                 </tr>
                 <tr>
-                  <td>${round2Two(team.summary.avg_cone_low)}</td>
-                  <td>${round2Two(team.summary.avg_cone_med)}</td>
-                  <td>${round2Two(team.summary.avg_cone_high)}</td>
+                  <td>${round2Two(team.summary.avg_low)}±${round2Two(team.summary.low_confidence)}</td>
+                  <td>${round2Two(team.summary.avg_med)}±${round2Two(team.summary.med_confidence)}</td>
+                  <td>${round2Two(team.summary.avg_high)}±${round2Two(team.summary.high_confidence)}</td>
                 </tr>
+
               </table>
               <table class="cube-table">
-                <caption><object class="caption-icon" data="./assets/svg/cube.svg" type=""></object></caption>
                 <tr>
-                  <th>Low</th>
-                  <th>Medium</th>
-                  <th>High</th>
+                  <th>Teleop Points</th>
+                  <th>Auto Points</th>
                 </tr>
                 <tr>
-                  <td>${round2Two(team.summary.avg_cube_low)}</td>
-                  <td>${round2Two(team.summary.avg_cube_med)}</td>
-                  <td>${round2Two(team.summary.avg_cube_high)}</td>
+                  <td>${round2Two(team.summary.teleop_points)}±${round2Two(team.summary.teleop_point_confidence)}</td>
+                  <td>${round2Two(team.summary.auto_points)}±${round2Two(team.summary.auto_point_confidence)}</td>
                 </tr>
               </table>
               <table class="station-table">
@@ -67,8 +64,8 @@ function fillRawTeamData(event) {
                 </tr>
                 <tr>
                   <td>${team.summary.can_balance}</td>
-                  <td>${round2Two(team.summary.dock_percentage*100)}</td>
                   <td>${round2Two(team.summary.balance_percentage*100)}</td>
+                  <td>${round2Two(team.summary.dock_percentage*100)}</td>
                 </tr>
               </table>
       `

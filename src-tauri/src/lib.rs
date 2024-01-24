@@ -23,24 +23,43 @@ pub use mobile::*;
 pub type SetupHook = Box<dyn FnOnce(&mut App) -> Result<(), Box<dyn std::error::Error>> + Send>;
 
 pub static TBA_AUTH_KEY: &str = "YpCes0r7kuXhw0S5fubKU27qoU4cAwDft0NBjhD3DdUKa9taHKhC3zGR0mqK76zA";
+pub const CONFIDENCE_INTERVAL: f64 = 0.9;
 
 fn read_scout_data(data_path: &str) -> Result<HashMap<u64, FrcTeam>, Box<dyn Error>> {
     let mut team_list: HashMap<u64, FrcTeam> = HashMap::new();
     let mut csv_data = csv::Reader::from_path(data_path)?;
     for entry in csv_data.deserialize() {
-        println!("Entry: {:?}", entry);
+        if entry.is_err() {
+            println!("Error reading entry: {:?}", entry.err());
+            continue;
+        }
         let match_entry: MatchEntry = entry?;
         if !team_list.contains_key(&match_entry.team_number) {
             team_list.insert(match_entry.team_number, FrcTeam::new(match_entry.team_number));
         }
         team_list.get_mut(&match_entry.team_number).unwrap().add_match_entry(match_entry);
     }
+    prune_single_teams(&mut team_list);
     for team in team_list.values_mut() {
+
       team.generate_summary();
       team.query_tba_data(TBA_AUTH_KEY);
     }
 
     Ok(team_list)
+}
+
+fn prune_single_teams(team_data: &mut HashMap<u64, FrcTeam>) {
+    let mut keys_to_remove: Vec<u64> = Vec::new();
+    for (key, value) in team_data.iter() {
+        if value.get_match_data().len() < 2 {
+            keys_to_remove.push(*key);
+        }
+    }
+    for key in keys_to_remove {
+        println!("Removing team {}", key);
+        team_data.remove(&key);
+    }
 }
 
 
@@ -59,7 +78,7 @@ fn get_team_rankings(handle: tauri::AppHandle, team_data: HashMap<u64, FrcTeam>,
 fn submit_data(handle: tauri::AppHandle, data_path: &str) -> HashMap<u64, FrcTeam> {
     let data: HashMap<u64, FrcTeam> = read_scout_data(data_path).unwrap();
     return data;
-
+ 
 }
 
 #[tauri::command]

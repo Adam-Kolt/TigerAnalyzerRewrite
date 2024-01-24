@@ -77,6 +77,35 @@ html {scroll-behavior: smooth;}
     overflow-x: hidden;
 }
 
+.data-team-comparison {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content:flex-start;
+    row-gap: 4px;
+}
+
+.data-team-comparison > .comparison-menu {
+    height: 1rem;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.data-team-comparison > .comparison-team-cards {
+    width: 100%;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-evenly;
+    align-content: space-evenly;
+}
+
 .data-team-raw-display {
     flex-direction: row;
     flex-wrap: wrap;
@@ -225,6 +254,11 @@ html {scroll-behavior: smooth;}
     background: linear-gradient(to bottom right, #4358f4, #333feb);
 }
 
+span.confidence-interval {
+    font-size: 10px;
+    color: #ECF0F1;
+}
+
 .match-overview-screen > .vs-separator {
     display: flex;
     flex-direction: row;
@@ -291,8 +325,7 @@ html {scroll-behavior: smooth;}
 
 .team-entry > .team-name {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.692);
-    margin-top: 0px;
+    color: #ECF0F1;
 }
 
 .team-entry > .cone-table, .team-entry > .cube-table {
@@ -314,7 +347,7 @@ html {scroll-behavior: smooth;}
     transform: translateX(0%);
 }
 
-.data-team-raw-display > .team-entry {
+.data-team-raw-display > .team-entry, .comparison-team-cards > .team-entry {
     width: 45%;
     background: -webkit-linear-gradient(top left, #F45C43, #EB3349);
     background: -moz-linear-gradient(top left, #F45C43, #EB3349);
@@ -331,6 +364,12 @@ html {scroll-behavior: smooth;}
     margin-top: 20px;
     position: relative;
 }
+
+.comparison-team-cards > .team-entry {
+    flex-shrink: 1;
+    margin-top: 0;
+}
+
 
 .team-entry > .dot-menu {
     position: absolute;
@@ -490,6 +529,17 @@ td > .percentage-bar {
     font-weight: bold;
     color: black;
     width: 170px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.id-data > .team-number > .team-name {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.692);
+    margin-top: 0px;
 }
 
 .id-data > .rank {

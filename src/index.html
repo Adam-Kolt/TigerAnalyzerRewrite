@@ -21,6 +21,7 @@
     <script src="assets/js/widgets/Data/teamDisplay.js" defer></script>
     <script src="assets/js/widgets/Analyze/visualizeOptions.js" defer></script>
     <script src="assets/js/widgets/Match/matchOverviewDisplay.js" defer></script>
+    <script src="assets/js/widgets/Data/teamComparisonDisplay.js"></script>
   
   </head>
 
@@ -57,9 +58,22 @@
 
               </div>
         </div>
+        <div class="grid-group inactive">
+          <div class="grid-item data-team-comparison tiger-scrollbar" style="grid-column: 1/4; grid-row: 1/4;">
+              <div class="comparison-menu">
+                <select id="" class="comparison-select"></select>
+                <button class="comparison-reset"></button>
+              </div>
+              <div class="comparison-team-cards">
+
+              </div>
+
+            </div>
+      </div>
         
         <div class="dot-nav">
             <div class="dot active"></div>
+            <div class="dot"></div>
             <div class="dot"></div>
         </div>
       </div>

@@ -1,7 +1,10 @@
-use std::{collections::HashMap, cmp};
+use std::{collections::HashMap, cmp, f64::consts::PI};
 
 use reqwest::{header, Response, Error};
 use serde::{Serialize, Deserialize, de};
+use statrs::{function::gamma::gamma, distribution::{StudentsT, ContinuousCDF}};
+
+use crate::CONFIDENCE_INTERVAL;
 
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
@@ -10,6 +13,8 @@ enum BalanceState {
     OffPlatform,
     OnPlatform,
     OnDocked,
+    Parked,
+    NotAttempt,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
@@ -21,37 +26,84 @@ enum MatchType {
     Final,
 }
 
+// scouter	eventCode	matchLevel	matchNumber	match_key	robot	teamNumber	autoStartingLocation	autoScoredGrid	autoCrossedCable	autoCrossedChargingStation	autoMobility	autoDocked	cycleTimes	scoredGrid	feedCount	wasFed	wasDefended	whoDefended	smartLinks	floorPickUp	dockingTime	finalState	numOfRobotsDocked	driverSkill	linksScored	defenseRating	swerveDrive	speedRating	diedOrTipped	tippy	droppedCones	goodPartner	comments	autoGamePieces	autoCubes	autoCones	autoHigh	autoMed	autoLow	avgCycleTime	teleopGamePieces	teleopCubes	teleopCones	teleopHigh	teleopMed	teleopLow	totalGamePieces	totalCubes	totalCones	totalHigh	totalMed	totalLow
+
+
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct MatchEntry {
-    pub date: u64,
+    pub scouter: String,
+    pub event_code: String,
     #[serde(deserialize_with = "from_match_type_string")]
-    match_type: MatchType,
+    match_level: MatchType,
+    pub match_number: u64,
+    #[serde(rename = "match_key")]
+    pub match_key: String,
+    pub robot: String,
     pub team_number: u64,
-    #[serde(default = "empty_tba_data")]
-    pub tba_match_data: Option<String>,
-    pub alliance: String,
-    pub cone_low_count: u64,
-    pub cone_med_count: u64,
-    pub cone_high_count: u64,
-    pub cube_low_count: u64,
-    pub cube_med_count: u64,
-    pub cube_high_count: u64,
+    pub auto_starting_location: String,
+    pub auto_scored_grid: String,
     #[serde(deserialize_with = "from_bool_string")]
-    pub floor_pickup: bool,
+    pub auto_crossed_cable: bool,
+    #[serde(deserialize_with = "from_bool_string")]
+    pub auto_crossed_charging_station: bool,
+    #[serde(deserialize_with = "from_bool_string")]
+    pub auto_mobility: bool,
     #[serde(deserialize_with = "from_charge_station_int")]
-    auton_balance: BalanceState,
+    auto_docked: BalanceState,
+    pub cycle_times: String,
+    pub scored_grid: String,
+    pub feed_count: u64,
+    #[serde(deserialize_with = "from_bool_string")]
+    pub was_fed: bool,
+    #[serde(deserialize_with = "from_bool_string")]
+    pub was_defended: bool,
+    pub who_defended: String,
+    pub smart_links: u64,
+    pub floor_pick_up: String,
+    pub docking_time: f64,
     #[serde(deserialize_with = "from_charge_station_int")]
-    end_game_balance: BalanceState
+    final_state: BalanceState,
+    pub num_of_robots_docked: u64,
+    pub driver_skill: String,
+    pub links_scored: u64,
+    pub defense_rating: String,
+    #[serde(deserialize_with = "from_bool_string")]
+    pub swerve_drive: bool,
+    pub speed_rating: u64,
+    #[serde(deserialize_with = "from_bool_string")]
+    pub died_or_tipped: bool,
+    #[serde(deserialize_with = "from_bool_string")]
+    pub tippy: bool,
+    #[serde(deserialize_with = "from_bool_string")]
+    pub dropped_cones: bool,
+    #[serde(deserialize_with = "from_bool_string")]
+    pub good_partner: bool,
+    pub comments: String,
+    pub auto_game_pieces: u64,
+    pub auto_cubes: u64,
+    pub auto_cones: u64,
+    pub auto_high: u64,
+    pub auto_med: u64,
+    pub auto_low: u64,
+    pub avg_cycle_time: String,
+    pub teleop_game_pieces: u64,
+    pub teleop_cubes: u64,
+    pub teleop_cones: u64,
+    pub teleop_high: u64,
+    pub teleop_med: u64,
+    pub teleop_low: u64,
+    pub total_game_pieces: u64,
+    pub total_cubes: u64,
+    pub total_cones: u64,
+    pub total_high: u64,
+    pub total_med: u64,
+    pub total_low: u64,
 }
 
 impl MatchEntry {
     pub fn constrain_values(&mut self) -> MatchEntry {
-        self.cone_low_count = self.cone_low_count.clamp(0, 9);
-        self.cone_med_count= self.cone_med_count.clamp(0, 6);
-        self.cone_high_count = self.cone_high_count.clamp(0, 6);
-        self.cube_low_count = self.cube_low_count.clamp(0, 9);
-        self.cube_med_count = self.cube_med_count.clamp(0, 3);
-        self.cube_high_count = self.cube_high_count.clamp(0, 3);
+
         self.to_owned()
     }
 }
@@ -70,9 +122,10 @@ where
         de::Deserialize::deserialize(deserializer).unwrap_or("false");
     
     match s {
-        "true"|"TRUE" => Ok(true),
-        "false"|"FALSE" => Ok(false),
-        _ => Err(de::Error::custom("Not a valid boolean"))
+        "true"|"TRUE"|"1" => Ok(true),
+        "false"|"FALSE"|"0" => Ok(false),
+        _ => Ok(false),
+         //_ => Err(de::Error::custom(s.to_owned()+" is not a valid boolean"))
         
     }
 }
@@ -86,13 +139,12 @@ where
     let num: &str = 
         de::Deserialize::deserialize(deserializer)?;
     match num {
-        "0" => Ok(BalanceState::OffPlatform),
-        "OffPlatform" => Ok(BalanceState::OffPlatform),
-        "1" => Ok(BalanceState::OnPlatform),
-        "OnPlatform" => Ok(BalanceState::OnPlatform),
-        "2" => Ok(BalanceState::OnDocked),
-        "OnDocked" => Ok(BalanceState::OnDocked),
-        _ => Err(de::Error::custom("Not a valid Balance Status"))
+        "0" | "x" | "a" | "OffPlatform" => Ok(BalanceState::OffPlatform),
+        "1" | "d" | "OnPlatform" => Ok(BalanceState::OnPlatform),
+        "2" | "e" | "OnDocked" => Ok(BalanceState::OnDocked),
+        "3" | "p" | "Parked" => Ok(BalanceState::Parked),
+        _ => Ok(BalanceState::NotAttempt),
+        //_ => Err(de::Error::custom("Not a valid Balance Status"))
     }
 }
 
@@ -123,48 +175,111 @@ pub struct TeamSummary {
     pub avg_low: f64,
     pub avg_med: f64,
     pub avg_high: f64,
+    pub avg_links: f64,
     pub can_balance: bool,
     pub balance_percentage: f64,
-    pub dock_percentage: f64
+    pub dock_percentage: f64,
+    pub auto_mobility: bool,
+    pub low_confidence: f64,
+    pub med_confidence: f64,
+    pub high_confidence: f64,
+    pub auto_point_confidence: f64,
+    pub teleop_point_confidence: f64,
+    pub auto_points: f64,
+    pub teleop_points: f64,
 }
 
 // UNSURE OF IMPLEMENTATION FOR AVERAGING
 struct  TeamSummaryAvgCounter {
-    avg_cone_low: Vec<u64>,
-    avg_cone_med: Vec<u64>,
-    avg_cone_high: Vec<u64>,
-    avg_cube_low: Vec<u64>,
-    avg_cube_med: Vec<u64>,
-    avg_cube_high: Vec<u64>,
+    avg_low: Vec<u64>,
+    avg_med: Vec<u64>,
+    avg_high: Vec<u64>,
+    avg_links: Vec<u64>,
     balance_count: Vec<u64>,
-    dock_count: Vec<u64>
+    dock_count: Vec<u64>,
+    teleop_points: Vec<u64>,
+    auto_points: Vec<u64>,
+
 }
 impl TeamSummaryAvgCounter {
     pub fn new() -> TeamSummaryAvgCounter {
-        TeamSummaryAvgCounter { avg_cone_low: Vec::new(), avg_cone_med: Vec::new(), avg_cone_high: Vec::new(), avg_cube_low: Vec::new(), avg_cube_med: Vec::new(), avg_cube_high: Vec::new(), balance_count: Vec::new(), dock_count: Vec::new() }
+        TeamSummaryAvgCounter { avg_low: Vec::new(), avg_med: Vec::new(), avg_high: Vec::new(), balance_count: Vec::new(), dock_count: Vec::new(), avg_links: Vec::new(), teleop_points: Vec::new(), auto_points: Vec::new() }
     }
 }
 
+// finds the standard error of sample statistic
+fn stand_error(data: &Vec<u64>) -> f64 {
+    let mut sum = 0.0;
+    let mut sum_sq = 0.0;
+    let mut n = 0.0;
+    let mut dev = 0.0;
+    for i in data {
+        sum += *i as f64;
+        sum_sq += (*i as f64) * (*i as f64);
+        n += 1.0;
+    }
+    let mean = sum / n;
+    for i in data {
+        dev += ((*i as f64) - mean) * ((*i as f64) - mean);
+    }
+    (dev / (n - 1.0)).sqrt()
+}
+
+// finds the tInterval of a sample data with confidence level
+fn tInterval(data: &Vec<u64>, confidence: f64) -> f64 {
+    if(data.len() <= 1) {
+        return 0.0;
+    }
+    let n = data.len() as f64;
+    let se = stand_error(data) / (n).sqrt();
+    if se <= 0.0 {
+        return 0.0;
+    }
+    let tDist = match StudentsT::new(0.0,se,n-1.0){
+        Ok(t) => t,
+        Err(e) => panic!("Error: {} Data: {:?} Confidence: {} SE: {}", e, data, confidence, se),
+    };
+    let t = tDist.inverse_cdf(1.0 - ((1.0-confidence)/2.0));
+    t
+}
+
+
 
 impl TeamSummary {
+    
     pub fn new(team: &FrcTeam) -> TeamSummary {
         let mut avg_count = TeamSummaryAvgCounter::new();
         let mut balance_flag = false;
+        let mut mobility_flag = false;
         for match_entry in &team.match_data {
-            avg_count.avg_cone_low.push(match_entry.cone_low_count);
-            avg_count.avg_cone_med.push(match_entry.cone_med_count);
-            avg_count.avg_cone_high.push(match_entry.cone_high_count);
-            avg_count.avg_cube_low.push(match_entry.cube_low_count);
-            avg_count.avg_cube_med.push(match_entry.cube_med_count);
-            avg_count.avg_cube_high.push(match_entry.cube_high_count);
-            match match_entry.end_game_balance {
+            avg_count.avg_low.push(match_entry.total_low);
+            avg_count.avg_med.push(match_entry.total_med);
+            avg_count.avg_high.push(match_entry.total_high);
+            avg_count.avg_links.push(match_entry.links_scored);
+
+            let auto_points = match_entry.auto_low*3 + match_entry.auto_med*4 + match_entry.auto_high*6 + match match_entry.final_state {
+                BalanceState::OnDocked => 12,
+                BalanceState::OnPlatform => 8,
+                _ => 0,
+            };
+            let teleop_points = match_entry.total_low*2 + match_entry.total_med*3 + match_entry.total_high*5 + match_entry.links_scored*5 + match match_entry.auto_docked {
+                BalanceState::OnDocked => 10,
+                BalanceState::OnPlatform => 6,
+                BalanceState::Parked => 2,
+                _ => 0,
+            };
+
+            avg_count.auto_points.push(auto_points);
+            avg_count.teleop_points.push(teleop_points);
+
+            match match_entry.final_state {
                 BalanceState::OffPlatform => {
                     avg_count.balance_count.push(0);
                     avg_count.dock_count.push(0);
                 }
                 
                 BalanceState::OnDocked => {
-                    avg_count.balance_count.push(0);
+                    avg_count.balance_count.push(1);
                     avg_count.dock_count.push(1);
                     balance_flag = true;
                 }
@@ -174,33 +289,46 @@ impl TeamSummary {
                     avg_count.dock_count.push(0);
                     balance_flag = true;
                 }
+                _ => {}
             }
-
+            if (match_entry.auto_mobility) {mobility_flag = true};
+            
         }
 
         
+        println! ("Num: {:?}", team.team_number);
 
         
 
         TeamSummary { 
             team_number: team.team_number, 
-            avg_cone_low: avg_count.avg_cone_low.iter().copied().sum::<u64>() as f64 / avg_count.avg_cone_low.len() as f64, 
-            avg_cone_med: avg_count.avg_cone_med.iter().copied().sum::<u64>() as f64 /avg_count.avg_cone_med.len() as f64, 
-            avg_cone_high: avg_count.avg_cone_high.iter().copied().sum::<u64>() as f64 /avg_count.avg_cone_high.len() as f64, 
-            avg_cube_low: avg_count.avg_cube_low.iter().copied().sum::<u64>() as f64 /avg_count.avg_cube_low.len() as f64, 
-            avg_cube_med: avg_count.avg_cube_med.iter().copied().sum::<u64>() as f64 /avg_count.avg_cube_med.len() as f64,  
-            avg_cube_high: avg_count.avg_cube_high.iter().copied().sum::<u64>() as f64 /avg_count.avg_cube_high.len() as f64,
-            avg_low: avg_count.avg_cone_low.iter().copied().sum::<u64>() as f64 / avg_count.avg_cone_low.len() as f64 + avg_count.avg_cube_low.iter().copied().sum::<u64>() as f64 /avg_count.avg_cube_low.len() as f64,
+            avg_cone_low: 0 as f64, 
+            avg_cone_med: 0 as f64, 
+            avg_cone_high: 0 as f64, 
+            avg_cube_low: 0 as f64, 
+            avg_cube_med: 0 as f64,  
+            avg_cube_high: 0 as f64,
+            teleop_points: avg_count.teleop_points.iter().copied().sum::<u64>() as f64 / avg_count.teleop_points.len() as f64,
+            auto_points: avg_count.auto_points.iter().copied().sum::<u64>() as f64 / avg_count.auto_points.len() as f64,
+            avg_low: avg_count.avg_low.iter().copied().sum::<u64>() as f64 / avg_count.avg_low.len() as f64,
             can_balance: balance_flag,
-            avg_med: avg_count.avg_cone_med.iter().copied().sum::<u64>() as f64 /avg_count.avg_cone_med.len() as f64 + avg_count.avg_cube_med.iter().copied().sum::<u64>() as f64 /avg_count.avg_cube_med.len() as f64,
-            avg_high: avg_count.avg_cone_high.iter().copied().sum::<u64>() as f64 /avg_count.avg_cone_high.len() as f64 + avg_count.avg_cube_high.iter().copied().sum::<u64>() as f64 /avg_count.avg_cube_high.len() as f64,
-            balance_percentage: 0.0 + avg_count.balance_count.iter().copied().sum::<u64>() as f64 /avg_count.balance_count.len() as f64, 
-            dock_percentage: avg_count.dock_count.iter().copied().sum::<u64>() as f64 /avg_count.dock_count.len() as f64 }
-
+            avg_med: avg_count.avg_med.iter().copied().sum::<u64>() as f64 /avg_count.avg_med.len() as f64,
+            avg_high: avg_count.avg_high.iter().copied().sum::<u64>() as f64 /avg_count.avg_high.len() as f64,
+            balance_percentage: avg_count.balance_count.iter().copied().sum::<u64>() as f64 / avg_count.balance_count.len() as f64,
+            dock_percentage: avg_count.dock_count.iter().copied().sum::<u64>() as f64 / avg_count.dock_count.len() as f64,
+            avg_links: avg_count.avg_links.iter().copied().sum::<u64>() as f64 / avg_count.avg_links.len() as f64,
+            auto_mobility: mobility_flag,
+            low_confidence: tInterval(&avg_count.avg_low, CONFIDENCE_INTERVAL) as f64,
+            med_confidence: tInterval(&avg_count.avg_med, CONFIDENCE_INTERVAL) as f64,
+            high_confidence: tInterval(&avg_count.avg_high, CONFIDENCE_INTERVAL) as f64,
+            auto_point_confidence: tInterval(&avg_count.auto_points, CONFIDENCE_INTERVAL) as f64,
+            teleop_point_confidence:  tInterval(&avg_count.teleop_points, CONFIDENCE_INTERVAL) as f64,
+        }
 
     }
     // Creates a combination of two teams into one summary
     fn combine_teams(team1: &TeamSummary, team2: &TeamSummary) -> TeamSummary {
+        
         TeamSummary {
             team_number: team1.team_number,
             avg_cone_low: (team1.avg_cone_low + team2.avg_cone_low),
@@ -214,7 +342,16 @@ impl TeamSummary {
             avg_high: (team1.avg_high + team2.avg_high),
             can_balance: team1.can_balance || team2.can_balance,
             balance_percentage: f64::max(team1.balance_percentage, team2.balance_percentage),
-            dock_percentage: f64::max(team1.dock_percentage, team2.dock_percentage)
+            dock_percentage: f64::max(team1.dock_percentage, team2.dock_percentage),
+            avg_links: team1.avg_links + team2.avg_links,
+            auto_mobility: team1.auto_mobility | team2.auto_mobility,
+            low_confidence: (team1.low_confidence + team2.low_confidence) / 2.0,
+            med_confidence: (team1.med_confidence + team2.med_confidence) / 2.0,
+            high_confidence: (team1.high_confidence + team2.high_confidence) / 2.0,
+            auto_point_confidence: (team1.auto_point_confidence + team2.auto_point_confidence) / 2.0,
+            teleop_point_confidence: (team1.teleop_point_confidence + team2.teleop_point_confidence) / 2.0,
+            auto_points: team1.auto_points + team2.auto_points,
+            teleop_points: team1.teleop_points + team2.teleop_points,
         }
     }
     pub fn constrain_values(&mut self) -> Self {
@@ -224,11 +361,11 @@ impl TeamSummary {
         self.avg_cube_low = self.avg_cube_low.clamp(0.0, 9.0);
         self.avg_cube_med = self.avg_cube_med.clamp(0.0, 3.0);
         self.avg_cube_high = self.avg_cube_high.clamp(0.0, 3.0);
-        self.avg_low = (self.avg_cone_low+self.avg_cube_low).clamp(0.0, 9.0);
-        self.avg_med = (self.avg_cone_med+self.avg_cube_med).clamp(0.0, 9.0);
-        self.avg_high = (self.avg_cone_high+self.avg_cube_high).clamp(0.0, 9.0);
+        self.avg_low = (self.avg_low).clamp(0.0, 9.0);
+        self.avg_med = (self.avg_med).clamp(0.0, 9.0);
+        self.avg_high = (self.avg_high).clamp(0.0, 9.0);
         self.dock_percentage = self.dock_percentage.clamp(0.0, 1.0);
-        self.balance_percentage = self.balance_percentage.clamp(0.0, 1.0-self.dock_percentage);
+        self.balance_percentage = self.balance_percentage.clamp(0.0, 1.0);
         self.to_owned()
     }
 }
@@ -239,7 +376,9 @@ pub struct RankMaxCount {
     pub medium: f64,
     pub high: f64,
     pub balance: f64,
-    pub dock: f64
+    pub dock: f64,
+    pub teleop_points: f64,
+    pub auto_points: f64,
 }
 
 pub struct PointValues {
@@ -258,6 +397,7 @@ pub struct RankOptions {
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct TeamRanking {
     pub team_number: u64,
+    pub team_name: Option<String>,
     pub overall_rating: f64,
     pub low_rating: f64,
     pub medium_rating: f64,
@@ -316,9 +456,15 @@ impl TeamRanking {
             if team_summary.dock_percentage > maxCount.dock {
                 maxCount.dock = team_summary.dock_percentage;
             }
+            if team_summary.teleop_points > maxCount.teleop_points {
+                maxCount.teleop_points = team_summary.teleop_points;
+            }
+            if team_summary.auto_points > maxCount.auto_points {
+                maxCount.auto_points = team_summary.auto_points;
+            }
         };
 
-        let totalPoints = (maxCount.low*point_values.low + maxCount.medium*point_values.medium + maxCount.high*point_values.high + maxCount.balance*point_values.balance + maxCount.dock*point_values.dock);
+        let totalPoints = maxCount.auto_points + maxCount.teleop_points;
 
         for team in teams.values() {
             if (comparison_team.team_number == team.team_number) {
@@ -327,13 +473,17 @@ impl TeamRanking {
             let team_summary = TeamSummary::combine_teams(team.get_summary().as_ref().unwrap(), comparison_team.get_summary().as_ref().unwrap()).constrain_values();
             let mut ranking = TeamRanking::default();
             ranking.team_number = team.team_number;
+            ranking.team_name = match team.tba_data.as_ref(){
+                Some(data) => data.get("nickname").unwrap().as_str().map(|s| s.to_string()),
+                None => None
+            };
             ranking.low_rating = team_summary.avg_low / maxCount.low;
             ranking.medium_rating = team_summary.avg_med / maxCount.medium;
             ranking.high_rating = team_summary.avg_high / maxCount.high;
             ranking.balance_rating = team_summary.balance_percentage / maxCount.balance;
             ranking.dock_rating = team_summary.dock_percentage / maxCount.dock;
             ranking.data_reliability_rating = 1.0;
-            ranking.overall_rating = (team_summary.avg_low*point_values.low + team_summary.avg_med*point_values.medium + team_summary.avg_high*point_values.high + team_summary.balance_percentage*point_values.balance + team_summary.dock_percentage*point_values.dock)/totalPoints;
+            ranking.overall_rating = (team_summary.auto_points + team_summary.teleop_points)/totalPoints;
             rankings.push(ranking);
         };
         rankings
@@ -377,6 +527,10 @@ impl FrcTeam {
 
     pub fn add_match_entry(&mut self, mut entry: MatchEntry) {
         self.match_data.push(entry.constrain_values());
+    }
+
+    pub fn get_match_data(&self) -> &Vec<MatchEntry> {
+        &self.match_data
     }
 }
 
